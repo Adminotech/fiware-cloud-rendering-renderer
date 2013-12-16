@@ -533,5 +533,24 @@ namespace CloudRenderingProtocol
             payload = data.value("payload", QVariantMap()).toMap();
             return true;
         }
+
+        // PeerCustomMessage
+
+        PeerCustomMessage::PeerCustomMessage(const QVariantMap &payload_) :
+            IMessage(ChannelTypeStatic(), MessageTypeStatic()),
+            payload(payload_)
+        {
+        }
+
+        void PeerCustomMessage::Serialize()
+        {
+            data["payload"] = payload;
+        }
+
+        bool PeerCustomMessage::Deserialize()
+        {
+            payload = data.value("payload", QVariantMap()).toMap();
+            return true;
+        }
     }
 }

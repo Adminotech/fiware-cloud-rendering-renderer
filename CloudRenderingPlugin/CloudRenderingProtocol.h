@@ -124,7 +124,8 @@ namespace CloudRenderingProtocol
         MT_RoomUserLeft         = 22,
         
         // "Application" channel
-        MT_RoomCustomMessage    = 30
+        MT_RoomCustomMessage    = 30,
+        MT_PeerCustomMessage    = 31
     };
 
     // "State" channel
@@ -143,8 +144,7 @@ namespace CloudRenderingProtocol
     
     // "Application" channel
     const QString RoomCustom = "RoomCustomMessage";
-    const QString ServiceCustom = "ServiceCustomMessage";
-    const QString RendererCustom = "RendererCustomMessage";
+    const QString PeerCustom = "PeerCustomMessage";
 
     /// Converts message type string to enum.
     inline static MessageType ToMessageType(const QString &type)
@@ -173,6 +173,8 @@ namespace CloudRenderingProtocol
         // "Application" channel
         else if (type == RoomCustom)
             return MT_RoomCustomMessage;
+        else if (type == PeerCustom)
+            return MT_PeerCustomMessage;
         return MT_Invalid;
     }
 
@@ -201,6 +203,8 @@ namespace CloudRenderingProtocol
         // "Application" channel
         else if (type == MT_RoomCustomMessage)
             return RoomCustom;
+        else if (type == MT_PeerCustomMessage)
+            return PeerCustom;
         return "";
     }
     
@@ -1126,6 +1130,59 @@ namespace CloudRenderingProtocol
 
             /// Message type.
             static MessageType MessageTypeStatic() { return MT_RoomCustomMessage; }
+
+        private:
+            /// IMessage override.
+            void Serialize();
+
+            /// IMessage override.
+            bool Deserialize();
+        };
+
+        /// %Peer custom message
+        /** This message can be used by the application to send custom message between any two peers via a WebRTC
+            data channel. This message does not contain sender or receiver id information because it is never relayed
+            via the web service. The needed sender information is known from the WebRTC protocol by the application
+            handling the messages.
+
+            These data channel messages should be used when there is no need for one-to-many communication and
+            when you require real time/very frequent communication. The data channel skips the overhead and latency
+            that is added by relaying the message via the web service with WebSocket.
+
+            Any custom message properties MAY be set to message.data.payload.
+
+            @code
+            {
+                "channel" : "Application",
+                "message" :
+                {
+                    "type" : "PeerCustomMessage",
+                    "data" :
+                    {
+                        "payload" :
+                        {
+                            // The structure of the data is decided by the application and the web client implementation.
+                            <application-specific-data>
+                        }
+                    }
+                }
+            }
+            @endcode */
+        class CLOUDRENDERING_API PeerCustomMessage : public IMessage
+        {
+            Q_OBJECT
+
+        public:
+            PeerCustomMessage(const QVariantMap &payload_ = QVariantMap());
+
+            /// Message payload.
+            QVariantMap payload;
+
+            /// Channel type.
+            static ChannelType ChannelTypeStatic() { return CT_Application; }
+
+            /// Message type.
+            static MessageType MessageTypeStatic() { return MT_PeerCustomMessage; }
 
         private:
             /// IMessage override.
