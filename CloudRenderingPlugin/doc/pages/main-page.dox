@@ -1,0 +1,15 @@
+/**
+
+@mainpage Cloud Rendering Documentation
+
+This documentation is for the Cloud Rendering GE that was developed by Adminotech Ltd. for the FIWARE MIWI project during 2013-2014.
+
+The documentation is for the Cloud Rendering server implementation. It provides in combination with the Cloud Rendering web service
+a generic enabler for Cloud Rendering for web clients. The service provides a simple way to request cloud rendering via the WebRTC
+web technology. As per the spec the provided rendering can be anything, but in our case it is a realXtend Tundra 3D virtual world client.
+
+The renderer, web service and the web client communicate via a WebSocket connection. The documentation will show you the protocol and 
+the JSON structured messages sent via the WebSocket connection.
+
+To learn more about FIWARE visit http://www.fi-ware.eu/ and about Adminotech Ltd. / Meshmoon http://www.adminotech.com/ http://www.meshmoon.com/
+*/

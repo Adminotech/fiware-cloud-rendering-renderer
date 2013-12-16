@@ -1,0 +1,47 @@
+# Compiled Object files
+*.slo
+*.lo
+*.o
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+
+# Qt generated
+moc_*.cxx
+moc_*.cxx_parameters
+
+# Disallow committing anything to deps
+deps*/
+
+# Visual studio -specific ignores.
+*.suo
+*.ncb
+*.user
+*.pdb
+*.idb
+*.vcproj
+*.vcxproj
+*.vcxproj.filters
+*.lib
+*.sln
+*.ipch
+*.sdf
+*.opensdf
+
+# Visual Studio CMake generated
+*/*.dir/
+*/Debug/
+*/Release/
+*/RelWithDebInfo/
+*/MinSizeRel/
+
+# CMake -specific
+*.cmake
+CMakeFiles
+CMakeCache.txt
