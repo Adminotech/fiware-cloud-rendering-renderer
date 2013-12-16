@@ -1,5 +1,12 @@
 
-// For conditions of distribution and use, see copyright notice in LICENSE
+/**
+    @author Admino Technologies Oy
+
+    Copyright 2013 Admino Technologies Oy. All rights reserved.
+    See LICENCE for conditions of distribution and use.
+
+    @file   
+    @brief   */
 
 #pragma once
 

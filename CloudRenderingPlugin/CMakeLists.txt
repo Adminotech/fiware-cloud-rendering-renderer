@@ -1,5 +1,5 @@
 
-#webrtc
+# webrtc
 
 file (TO_CMAKE_PATH "$ENV{WEBRTC_ROOT}" WEBRTC_ROOT)
 if ("${WEBRTC_ROOT}" STREQUAL "")
@@ -8,6 +8,11 @@ endif ()
 
 set (WEBRTC_INCLUDE_DIRS ${WEBRTC_ROOT} ${WEBRTC_ROOT}/third_party/protobuf/src)
 set (WEBRTC_LIBRARY_DIRS ${WEBRTC_ROOT}/build/Release/lib)
+
+# This library listing might seem overly complicated, but there is no sensible auto linking done in webrtc.
+# We need to know all of the cross dependencies any module might have and link to everything.
+# TODO: Verify this list is comprehensive enough on linux/mac builds.
+
 set (WEBRTC_LIBRARIES 
     libjingle
     libjingle_p2p 

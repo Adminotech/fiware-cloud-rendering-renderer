@@ -1,7 +1,14 @@
+/**
+    @author Admino Technologies Oy
 
-// For conditions of distribution and use, see copyright notice in LICENSE
+    Copyright 2013 Admino Technologies Oy. All rights reserved.
+    See LICENCE for conditions of distribution and use.
 
-// Hack around Windows GDI Polygon define
+    @file   
+    @brief   */
+
+// Go around Windows GDI Polygon (conflicts with the Tundra math library) define by including it first.
+
 #include "Win.h"
 #include "EC_Camera.h"
 
