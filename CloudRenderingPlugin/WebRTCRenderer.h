@@ -47,6 +47,14 @@ namespace WebRTC
         void OnServiceDisconnected();
         void OnServiceConnectingFailed();
         void OnServiceMessage(CloudRenderingProtocol::MessageSharedPtr message);
+
+        /// UTF8 data channel message handlers.
+        void OnDataChannelMessage(CloudRenderingProtocol::MessageSharedPtr message);
+        void OnDataChannelMessage(WebRTC::PeerConnection *sender, CloudRenderingProtocol::MessageSharedPtr message);
+        
+        /// Binary data channel message handlers.
+        void OnDataChannelMessage(const CloudRenderingProtocol::BinaryMessageData &data);
+        void OnDataChannelMessage(WebRTC::PeerConnection *sender, const CloudRenderingProtocol::BinaryMessageData &data);
         
         /// Signal handler when peers local data information has been resolved and we can send the AnswerMessage.
         void OnLocalConnectionDataResolved(WebRTC::SDP sdp, WebRTC::ICECandidateList candidates);
@@ -56,6 +64,9 @@ namespace WebRTC
         
         /// Gets or created peer with id.
         WebRTCPeerConnectionPtr GetOrCreatePeer(const QString &peerId);
+        
+        void PostKeyboardEvent(const QVariantMap &data);
+        void PostMouseEvent(const QVariantMap &data);
 
     private:
         QString LC;
@@ -68,6 +79,15 @@ namespace WebRTC
         WebRTCTundraRendererPtr tundraRenderer_;
         WebRTCWebSocketClientPtr websocket_;
         WebRTCPeerConnectionList connections_;
+        
+        struct InputState
+        {
+            Qt::MouseButtons mouseButtons;
+            Qt::KeyboardModifiers keyboardModifiers;
+            
+            InputState() : mouseButtons(Qt::NoButton), keyboardModifiers(Qt::NoModifier) {}
+        };
+        InputState inputState_;
     };
     
     /// Tundra renderer consumer receives frame updates from TundraRenderer.

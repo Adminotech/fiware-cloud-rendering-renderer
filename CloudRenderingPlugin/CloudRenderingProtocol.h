@@ -318,11 +318,17 @@ namespace CloudRenderingProtocol
     /// Message shared ptr.
     typedef shared_ptr<IMessage> MessageSharedPtr;
     typedef QList<MessageSharedPtr> MessageSharedPtrList;
-    
+
+    /// Binary message.
+    typedef QByteArray BinaryMessageData;
+
     /// Parses a message from input JSON data.
     /** @param json JSON data.
         @return Created message, null if parsing from @c json failed. */
     MessageSharedPtr CreateMessageFromJSON(const QByteArray &json);
+    
+    /// Dump json with pretty indentation to stdout.
+    void DumpPrettyJSON(const QByteArray &json);
     
     namespace Signaling
     {

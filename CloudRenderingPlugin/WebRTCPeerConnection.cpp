@@ -459,14 +459,40 @@ namespace WebRTC
     
     void PeerConnection::OnMessage(const webrtc::DataBuffer& buffer)
     {
-        qDebug() << "webrtc::DataChannelObserver::OnMessage" << endl
-                 << "    binary  =" << buffer.binary << endl
-                 << "    size    =" << buffer.data.length() << "bytes";
-        
         if (!buffer.binary)
         {
-            QString payload = QString::fromUtf8(buffer.data.data(), buffer.data.length());
-            qDebug() << endl << payload << endl;
+            QByteArray json = QString::fromUtf8(buffer.data.data(), buffer.data.length()).toUtf8();
+
+            CloudRenderingProtocol::MessageSharedPtr message = CloudRenderingProtocol::CreateMessageFromJSON(json);
+            if (!message.get())
+            {
+                LogError(LC + "Error while parsing incoming JSON message");
+                if (IsLogChannelEnabled(LogChannelDebug))
+                    CloudRenderingProtocol::DumpPrettyJSON(json);
+                return;
+            }
+            if (!message->IsValid())
+            {
+                LogError(LC + "Failed to resolve incoming JSON messages type");
+                return;
+            }
+
+            if (IsLogChannelEnabled(LogChannelDebug))
+            {
+                qDebug() << "PEER DATA CHANNEL - Received new message: channel =" << message->ChannelTypeName() << "type =" << message->MessageTypeName() << "    raw size =" << json.size() << "bytes";
+                CloudRenderingProtocol::DumpPrettyJSON(json);
+            }
+            
+            emit DataChannelMessage(message);
+        }
+        else
+        {
+            CloudRenderingProtocol::BinaryMessageData data = CloudRenderingProtocol::BinaryMessageData::fromRawData(buffer.data.data(), buffer.data.length());
+            
+            if (IsLogChannelEnabled(LogChannelDebug))
+                qDebug() << "PEER DATA CHANNEL - Received new binary message of" << data.size() << "bytes";
+
+            emit DataChannelMessage(data);
         }
     }
 

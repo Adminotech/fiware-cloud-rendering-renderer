@@ -12,6 +12,7 @@
 #include "CloudRenderingPluginApi.h"
 #include "CloudRenderingPluginFwd.h"
 #include "CloudRenderingDefines.h"
+#include "CloudRenderingProtocol.h"
 
 #include "talk/base/common.h"
 #include "talk/app/webrtc/peerconnectioninterface.h"
@@ -127,6 +128,12 @@ namespace WebRTC
         
         /// Emitted when local ICE candidates information has been resolved.
         void LocaleIceCandidatesResolved(WebRTC::ICECandidateList candidates);
+        
+        /// Emitted when a data channel message has been received.
+        void DataChannelMessage(CloudRenderingProtocol::MessageSharedPtr message);
+
+        /// Emitted when a binary data channel message has been received.    
+        void DataChannelMessage(const CloudRenderingProtocol::BinaryMessageData &data);
 
     public:
         /// webrtc::PeerConnectionObserver overrides.

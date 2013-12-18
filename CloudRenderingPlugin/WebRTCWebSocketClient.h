@@ -135,7 +135,6 @@ namespace WebRTC
         void Reset();
         
         bool IsDebugRun() const;
-        void DumpPrettyJSON(const QByteArray &json) const;
         
         WebSocket::Client client_;
         websocketpp::connection_hdl connectionHandle_;

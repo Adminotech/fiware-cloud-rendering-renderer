@@ -46,7 +46,15 @@ namespace CloudRenderingProtocol
         id = "";
         peers.clear();
     }
-    
+
+    // Utils
+
+    void DumpPrettyJSON(const QByteArray &json)
+    {
+        QVariant temp = TundraJson::Parse(json);
+        qDebug() << endl << qPrintable(TundraJson::Serialize(temp, TundraJson::IndentFull)) << endl;
+    }
+
     // Message parser
 
     MessageSharedPtr CreateMessageFromJSON(const QByteArray &json)
@@ -81,7 +89,12 @@ namespace CloudRenderingProtocol
             message = MessageSharedPtr(new Room::RoomUserJoinedMessage());
         else if (messageType == Room::RoomUserLeftMessage::MessageTypeStatic())
             message = MessageSharedPtr(new Room::RoomUserLeftMessage());
- 
+        // Application
+        else if (messageType == Application::RoomCustomMessage::MessageTypeStatic())
+            message = MessageSharedPtr(new Application::RoomCustomMessage());
+        else if (messageType == Application::PeerCustomMessage::MessageTypeStatic())
+            message = MessageSharedPtr(new Application::PeerCustomMessage());
+
         if (message.get())
         {
             // If from data deserialization fails, return a null ptr.

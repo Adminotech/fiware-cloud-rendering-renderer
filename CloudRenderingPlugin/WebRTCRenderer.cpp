@@ -27,6 +27,8 @@
 #include "UiMainWindow.h"
 
 #include <QImage>
+#include <QKeyEvent>
+#include <QMouseEvent>
 #include <QDebug>
 
 #include "OgreRenderingModule.h"
@@ -96,6 +98,10 @@ namespace WebRTC
             peer = WebRTCPeerConnectionPtr(new WebRTC::PeerConnection(plugin_->GetFramework(), peerId));
             connect(peer.get(), SIGNAL(LocalConnectionDataResolved(WebRTC::SDP, WebRTC::ICECandidateList)), 
                 SLOT(OnLocalConnectionDataResolved(WebRTC::SDP, WebRTC::ICECandidateList)), Qt::QueuedConnection);
+            connect(peer.get(), SIGNAL(DataChannelMessage(CloudRenderingProtocol::MessageSharedPtr)), 
+                SLOT(OnDataChannelMessage(CloudRenderingProtocol::MessageSharedPtr)), Qt::QueuedConnection);
+            connect(peer.get(), SIGNAL(DataChannelMessage(const CloudRenderingProtocol::BinaryMessageData&)), 
+                SLOT(OnDataChannelMessage(const CloudRenderingProtocol::BinaryMessageData&)), Qt::QueuedConnection);
             connections_ << peer;
         }
         return peer;
@@ -248,6 +254,270 @@ namespace WebRTC
                 break;
             }
         }
+    }
+    
+    void Renderer::OnDataChannelMessage(CloudRenderingProtocol::MessageSharedPtr message)
+    {
+        OnDataChannelMessage(dynamic_cast<WebRTC::PeerConnection*>(sender()), message);
+    }
+    
+    void Renderer::OnDataChannelMessage(WebRTC::PeerConnection *sender, CloudRenderingProtocol::MessageSharedPtr message)
+    {
+        if (!sender)
+            return;
+            
+        switch (message->Channel())
+        {
+            // Application
+            case CloudRenderingProtocol::CT_Application:
+            {
+                switch (message->Type())
+                {
+                    case CloudRenderingProtocol::MT_PeerCustomMessage:
+                    {
+                        CloudRenderingProtocol::Application::PeerCustomMessage *peerMessage = dynamic_cast<CloudRenderingProtocol::Application::PeerCustomMessage*>(message.get());
+                        if (peerMessage)
+                        {
+                            QString type = peerMessage->payload.value("type", "").toString();
+                            if (type == "InputKeyboard")
+                                PostKeyboardEvent(peerMessage->payload);
+                            else if (type == "InputMouse")
+                                PostMouseEvent(peerMessage->payload);
+                            else
+                                LogWarning("Unknown PeerCustomMessage with type " + type);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    Qt::Key KeyFromHtmlKeyCode(int c)
+    {
+        switch(c)
+        {
+            case 8:     return Qt::Key_Backspace;
+            case 9:     return Qt::Key_Tab;
+            case 13:    return Qt::Key_Enter;
+            case 16:    return Qt::Key_Shift;
+            case 17:    return Qt::Key_Control;
+            case 18:    return Qt::Key_Alt;
+            case 19:    return Qt::Key_Pause;
+            case 20:    return Qt::Key_CapsLock;
+            case 27:    return Qt::Key_Escape;
+            
+            case 33:    return Qt::Key_PageUp;
+            case 34:    return Qt::Key_PageDown;
+            
+            case 35:    return Qt::Key_End;
+            case 36:    return Qt::Key_Home;
+            case 37:    return Qt::Key_Left;
+            case 38:    return Qt::Key_Up;
+            case 39:    return Qt::Key_Right;
+            case 40:    return Qt::Key_Down;
+            
+            case 45:    return Qt::Key_Insert;
+            case 46:    return Qt::Key_Delete;
+            
+            case 48:    return Qt::Key_0;
+            case 49:    return Qt::Key_1;
+            case 50:    return Qt::Key_2;
+            case 51:    return Qt::Key_3;
+            case 52:    return Qt::Key_4;
+            case 53:    return Qt::Key_5;
+            case 54:    return Qt::Key_6;
+            case 55:    return Qt::Key_7;
+            case 56:    return Qt::Key_8;
+            case 57:    return Qt::Key_9;
+            
+            case 65:    return Qt::Key_A;
+            case 66:    return Qt::Key_B;
+            case 67:    return Qt::Key_C;
+            case 68:    return Qt::Key_D;
+            case 69:    return Qt::Key_E;
+            case 70:    return Qt::Key_F;
+            case 71:    return Qt::Key_G;
+            case 72:    return Qt::Key_H;
+            case 73:    return Qt::Key_I;
+            case 74:    return Qt::Key_J;
+            case 75:    return Qt::Key_K;
+            case 76:    return Qt::Key_L;
+            case 77:    return Qt::Key_M;
+            case 78:    return Qt::Key_N;
+            case 79:    return Qt::Key_O;
+            case 80:    return Qt::Key_P;
+            case 81:    return Qt::Key_Q;
+            case 82:    return Qt::Key_R;
+            case 83:    return Qt::Key_S;
+            case 84:    return Qt::Key_T;
+            case 85:    return Qt::Key_U;
+            case 86:    return Qt::Key_V;
+            case 87:    return Qt::Key_W;
+            case 88:    return Qt::Key_X;
+            case 89:    return Qt::Key_Y;
+            case 90:    return Qt::Key_Z;
+
+            //case 91:    return Qt::Key_; // left window key?
+            //case 92:    return Qt::Key_; // right window key?
+            case 93:    return Qt::Key_Select;
+
+            case 96:    return Qt::Key_0; // Numpad numbers
+            case 97:    return Qt::Key_1;
+            case 98:    return Qt::Key_2;
+            case 99:    return Qt::Key_3;
+            case 100:   return Qt::Key_4;
+            case 101:   return Qt::Key_5;
+            case 102:   return Qt::Key_6;
+            case 103:   return Qt::Key_7;
+            case 104:   return Qt::Key_8;
+            case 105:   return Qt::Key_9;
+            
+            case 106:   return Qt::Key_Asterisk; // multiply
+            case 107:   return Qt::Key_Plus;     // add
+            case 109:   return Qt::Key_Minus;    // subtract
+            case 110:   return Qt::Key_Comma;    // decimal point
+            case 111:   return Qt::Key_Slash;    // divide
+            
+            case 112:   return Qt::Key_F1;
+            case 113:   return Qt::Key_F2;
+            case 114:   return Qt::Key_F3;
+            case 115:   return Qt::Key_F4;
+            case 116:   return Qt::Key_F5;
+            case 117:   return Qt::Key_F6;
+            case 118:   return Qt::Key_F7;
+            case 119:   return Qt::Key_F8;
+            case 120:   return Qt::Key_F9;
+            case 121:   return Qt::Key_F10;
+            case 122:   return Qt::Key_F11;
+            case 123:   return Qt::Key_F12;
+            
+            case 144:   return Qt::Key_NumLock;
+            case 145:   return Qt::Key_ScrollLock;
+            
+            case 186:   return Qt::Key_Semicolon;
+            case 187:   return Qt::Key_Equal;
+            case 188:   return Qt::Key_Comma;
+            //case 189:   return Qt::Key_;     // dash
+            case 190:   return Qt::Key_Period;
+            case 191:   return Qt::Key_Slash;  // forward slash
+            //case 192:   return Qt::Key_;     // grave accent
+            
+            case 219:   return Qt::Key_BracketLeft;  // open bracket
+            case 220:   return Qt::Key_Backslash;
+            case 221:   return Qt::Key_BracketRight; // close bracket
+            case 222:   return Qt::Key_QuoteLeft;    // single quote
+        }
+        return Qt::Key_unknown;
+    }
+
+    void Renderer::PostKeyboardEvent(const QVariantMap &data)
+    {
+        UiMainWindow *mainWindow = (plugin_ ? plugin_->GetFramework()->Ui()->MainWindow() : 0);
+        if (!mainWindow)
+            return;
+        
+        // type: 'keyDown' or 'keyUp'
+        QEvent::Type type = (data.value("action", "").toString() == "keyDown" ? QEvent::KeyPress : QEvent::KeyRelease);
+        
+        // modifiers
+        Qt::KeyboardModifiers modifiers = Qt::NoModifier;
+        if (data.value("altKey", false).toBool())
+            modifiers |= Qt::AltModifier;
+        if (data.value("shiftKey", false).toBool())
+            modifiers |= Qt::ShiftModifier;
+        if (data.value("ctrlKey", false).toBool())
+            modifiers |= Qt::ControlModifier;
+        if (data.value("metaKey", false).toBool())
+            modifiers |= Qt::MetaModifier;
+            
+        inputState_.keyboardModifiers = modifiers;
+            
+        Qt::Key key = KeyFromHtmlKeyCode(data.value("key").toInt());
+        if (key == Qt::Key_unknown)
+        {
+            if (IsLogChannelEnabled(LogChannelDebug))
+                qWarning() << "Failed to map HTML keyCode" << data.value("key").toInt() << "to a Qt key";
+            return;
+        }
+        
+        QKeyEvent *e = new QKeyEvent(type, key, modifiers);
+        QApplication::postEvent(mainWindow, e);
+    }
+
+    void Renderer::PostMouseEvent(const QVariantMap &data)
+    {
+        UiMainWindow *mainWindow = (plugin_ ? plugin_->GetFramework()->Ui()->MainWindow() : 0);
+        if (!mainWindow)
+            return;
+            
+        if (!data.contains("x") || !data.contains("y"))
+            return;
+
+        bool ok = false;
+        float x = data.value("x").toFloat(&ok);
+        if (!ok) return; ok = false;       
+        if (x > 1.0f)
+        {
+            LogWarning(LC + "Received mouse event with x >= 1.0!");
+            x = 1.0f;
+        }
+        float y = data.value("y").toFloat(&ok);
+        if (!ok) return;
+        if (y > 1.0f)
+        {
+            LogWarning(LC + "Received mouse event with y >= 1.0!");
+            y = 1.0f;
+        }
+
+        // type: 'move', 'press' or 'release'
+        QString typeStr = data.value("action", "").toString();
+        QEvent::Type type = (typeStr == "move" ? QEvent::MouseMove : (typeStr == "press" ? QEvent::MouseButtonPress : QEvent::MouseButtonRelease));       
+
+        // button
+        if (type != QEvent::MouseMove)
+            inputState_.mouseButtons = Qt::NoButton;
+
+        Qt::MouseButton button = Qt::NoButton;
+        if (data.value("leftButton", false).toBool())
+        {
+            button = Qt::LeftButton;
+            inputState_.mouseButtons |= Qt::LeftButton;
+        }
+        if (data.value("rightButton", false).toBool())
+        {
+            button = Qt::RightButton;
+            inputState_.mouseButtons |= Qt::RightButton;
+        }
+        if (data.value("middleButton", false).toBool())
+        {
+            button = Qt::MiddleButton;
+            inputState_.mouseButtons |= Qt::MiddleButton;
+        }
+
+        // position [0.0, 1.0]
+        QRect mainWindowRect = mainWindow->geometry();
+        QPoint mousePos(mainWindowRect.width() * x, mainWindowRect.height() * y);
+        
+        QMouseEvent *e = 0;
+        if (type != QEvent::MouseMove)
+            e = new QMouseEvent(type, mousePos, button, inputState_.mouseButtons, inputState_.keyboardModifiers);
+        else
+            e = new QMouseEvent(type, mousePos, QCursor::pos(), Qt::NoButton, inputState_.mouseButtons, inputState_.keyboardModifiers);
+        QApplication::postEvent(mainWindow, e);
+    }
+    
+    void Renderer::OnDataChannelMessage(const CloudRenderingProtocol::BinaryMessageData &data)
+    {
+        OnDataChannelMessage(dynamic_cast<WebRTC::PeerConnection*>(sender()), data);
+    }
+    
+    void Renderer::OnDataChannelMessage(WebRTC::PeerConnection *sender, const CloudRenderingProtocol::BinaryMessageData &data)
+    {
+        if (!sender)
+            return;
+            
+        LogWarning(LC + "Handling binary data channel messages not implemented!");
     }
 
     void Renderer::OnLocalConnectionDataResolved(WebRTC::SDP sdp, WebRTC::ICECandidateList candidates)

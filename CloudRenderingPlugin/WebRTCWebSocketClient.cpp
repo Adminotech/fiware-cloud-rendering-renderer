@@ -103,7 +103,7 @@ namespace WebRTC
             if (thread_->IsDebugRun())
             {
                 qDebug() << "Sending message: channel =" << message->ChannelTypeName() << "type =" << message->MessageTypeName() << "    raw size =" << json.size() << "bytes";
-                thread_->DumpPrettyJSON(json);
+                CloudRenderingProtocol::DumpPrettyJSON(json);
             }
 
             websocketpp::lib::error_code ec = thread_->Send(json);
@@ -165,16 +165,12 @@ namespace WebRTC
         client_.clear_error_channels(websocketpp::log::elevel::all);
 
         // Debug logging
-        if (owner_->GetFramework()->HasCommandLineParameter("--loglevel"))
+        if (IsLogChannelEnabled(LogChannelDebug))
         {
-            QString logLevel = owner_->GetFramework()->CommandLineParameters("--loglevel").first().trimmed().toLower();
-            if (logLevel == "debug")
-            {
-                LogDebug(LC + "Setting websocketpp loglevel to debug");
-                client_.set_access_channels(websocketpp::log::alevel::all);
-                client_.set_error_channels(websocketpp::log::elevel::all);
-                debugRun_ = true;
-            }
+            LogDebug(LC + "Setting websocketpp loglevel to debug");
+            client_.set_access_channels(websocketpp::log::alevel::all);
+            client_.set_error_channels(websocketpp::log::elevel::all);
+            debugRun_ = true;
         }
 
         client_.set_open_handler(bind(&WebSocketThread::OnConnectionOpened, this, ::_1));
@@ -200,12 +196,6 @@ namespace WebRTC
     bool WebSocketThread::IsDebugRun() const
     {
         return debugRun_;
-    }
-    
-    void WebSocketThread::DumpPrettyJSON(const QByteArray &json) const
-    {
-        QVariant temp = TundraJson::Parse(json);
-        qDebug() << endl << qPrintable(TundraJson::Serialize(temp, TundraJson::IndentFull)) << endl;
     }
     
     void WebSocketThread::run()
@@ -259,7 +249,7 @@ namespace WebRTC
             {
                 LogError(LC + "Error while parsing incoming JSON message");
                 if (IsDebugRun())
-                    DumpPrettyJSON(json);
+                    CloudRenderingProtocol::DumpPrettyJSON(json);
                 return;
             }
             if (!message->IsValid())
@@ -276,7 +266,7 @@ namespace WebRTC
             if (IsDebugRun())
             {
                 qDebug() << "Received new message: channel =" << message->ChannelTypeName() << "type =" << message->MessageTypeName() << "    raw size =" << json.size() << "bytes";
-                DumpPrettyJSON(json);
+                CloudRenderingProtocol::DumpPrettyJSON(json);
             }
 
             emit NewMessages();
