@@ -25,6 +25,8 @@
 #include "Application.h"
 #include "UiAPI.h"
 #include "UiMainWindow.h"
+#include "UiGraphicsView.h"
+#include "InputAPI.h"
 
 #include <QImage>
 #include <QKeyEvent>
@@ -55,12 +57,16 @@ namespace WebRTC
         tundraRenderer_(new TundraRenderer(plugin))
     {
         WebRTC::RegisterMetaTypes();
+        CloudRenderingProtocol::RegisterMetaTypes();
 
         connect(websocket_.get(), SIGNAL(Connected()), SLOT(OnServiceConnected()));
         connect(websocket_.get(), SIGNAL(Disconnected()), SLOT(OnServiceDisconnected()));
         connect(websocket_.get(), SIGNAL(ConnectingFailed()), SLOT(OnServiceConnectingFailed()));
         connect(websocket_.get(), SIGNAL(Message(CloudRenderingProtocol::MessageSharedPtr)),
             SLOT(OnServiceMessage(CloudRenderingProtocol::MessageSharedPtr)));
+            
+        // We are going to be injecting input events when the window is inactive, disable auto releasing keys.
+        plugin_->GetFramework()->Input()->SetReleaseInputWhenApplicationInactive(false);
         
         // Connect to service
         serviceHost_ = WebRTC::WebSocketClient::CleanHost(plugin_->GetFramework()->CommandLineParameters("--cloudRenderer").first());
@@ -307,6 +313,7 @@ namespace WebRTC
             case 20:    return Qt::Key_CapsLock;
             case 27:    return Qt::Key_Escape;
             
+            case 32:    return Qt::Key_Space;
             case 33:    return Qt::Key_PageUp;
             case 34:    return Qt::Key_PageDown;
             
@@ -413,8 +420,8 @@ namespace WebRTC
 
     void Renderer::PostKeyboardEvent(const QVariantMap &data)
     {
-        UiMainWindow *mainWindow = (plugin_ ? plugin_->GetFramework()->Ui()->MainWindow() : 0);
-        if (!mainWindow)
+        UiGraphicsView *view = (plugin_ ? plugin_->GetFramework()->Ui()->GraphicsView() : 0);
+        if (!view)
             return;
         
         // type: 'keyDown' or 'keyUp'
@@ -441,14 +448,24 @@ namespace WebRTC
             return;
         }
         
-        QKeyEvent *e = new QKeyEvent(type, key, modifiers);
-        QApplication::postEvent(mainWindow, e);
+        QString text = QKeySequence(key).toString(QKeySequence::NativeText).toLower();
+        if (text == "space")
+            text = " ";
+        else if (text == "tab")
+            text = "    ";
+        if (data.value("shiftKey", false).toBool())
+            text = text.toUpper();
+        
+        QKeyEvent *e = new QKeyEvent(type, key, modifiers, text);
+        if (IsLogChannelEnabled(LogChannelDebug))
+            qDebug() << e;
+        QApplication::postEvent(view, e);
     }
 
     void Renderer::PostMouseEvent(const QVariantMap &data)
     {
-        UiMainWindow *mainWindow = (plugin_ ? plugin_->GetFramework()->Ui()->MainWindow() : 0);
-        if (!mainWindow)
+        UiGraphicsView *view = (plugin_ ? plugin_->GetFramework()->Ui()->GraphicsView() : 0);
+        if (!view)
             return;
             
         if (!data.contains("x") || !data.contains("y"))
@@ -496,7 +513,7 @@ namespace WebRTC
         }
 
         // position [0.0, 1.0]
-        QRect mainWindowRect = mainWindow->geometry();
+        QRect mainWindowRect = view->geometry();
         QPoint mousePos(mainWindowRect.width() * x, mainWindowRect.height() * y);
         
         QMouseEvent *e = 0;
@@ -504,7 +521,9 @@ namespace WebRTC
             e = new QMouseEvent(type, mousePos, button, inputState_.mouseButtons, inputState_.keyboardModifiers);
         else
             e = new QMouseEvent(type, mousePos, QCursor::pos(), Qt::NoButton, inputState_.mouseButtons, inputState_.keyboardModifiers);
-        QApplication::postEvent(mainWindow, e);
+        if (IsLogChannelEnabled(LogChannelDebug))
+            qDebug() << e;
+        QApplication::postEvent(view->viewport(), e);
     }
     
     void Renderer::OnDataChannelMessage(const CloudRenderingProtocol::BinaryMessageData &data)
@@ -518,6 +537,7 @@ namespace WebRTC
             return;
             
         LogWarning(LC + "Handling binary data channel messages not implemented!");
+        UNREFERENCED_PARAM(data);
     }
 
     void Renderer::OnLocalConnectionDataResolved(WebRTC::SDP sdp, WebRTC::ICECandidateList candidates)
@@ -680,6 +700,9 @@ namespace WebRTC
         if (pendingWindowResize_.isValid() && framework_->Ui()->MainWindow())
         {
             qDebug() << "Executing resize" << pendingWindowResize_;
+            if (framework_->Ui()->MainWindow()->isMinimized() || framework_->Ui()->MainWindow()->isMaximized())
+                framework_->Ui()->MainWindow()->showNormal();
+
             framework_->Ui()->MainWindow()->resize(pendingWindowResize_); 
             pendingWindowResize_ = QSize();
             return;

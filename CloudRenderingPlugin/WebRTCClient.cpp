@@ -24,6 +24,7 @@ namespace WebRTC
         websocket_(new WebRTC::WebSocketClient(plugin))
     {
         WebRTC::RegisterMetaTypes();
+        CloudRenderingProtocol::RegisterMetaTypes();
 
         connect(websocket_.get(), SIGNAL(Connected()), SLOT(OnServiceConnected()));
         connect(websocket_.get(), SIGNAL(Disconnected()), SLOT(OnServiceDisconnected()));

@@ -208,13 +208,6 @@ namespace CloudRenderingProtocol
         return "";
     }
     
-    inline static void RegisterMetaTypes()
-    {
-        qRegisterMetaType<CloudRenderingProtocol::ConnectionState>("CloudRenderingProtocol::ConnectionState");
-        qRegisterMetaType<CloudRenderingProtocol::ChannelType>("CloudRenderingProtocol::ChannelType");
-        qRegisterMetaType<CloudRenderingProtocol::MessageType>("CloudRenderingProtocol::MessageType");
-    }
-    
     /// A generic message interface.
     /** The base interface provides the message type and the 
         full raw data available for the parsing logic. 
@@ -321,6 +314,17 @@ namespace CloudRenderingProtocol
 
     /// Binary message.
     typedef QByteArray BinaryMessageData;
+
+    /// Register script types.
+    inline static void RegisterMetaTypes()
+    {
+        qRegisterMetaType<CloudRenderingProtocol::ConnectionState>("CloudRenderingProtocol::ConnectionState");
+        qRegisterMetaType<CloudRenderingProtocol::ChannelType>("CloudRenderingProtocol::ChannelType");
+        qRegisterMetaType<CloudRenderingProtocol::MessageType>("CloudRenderingProtocol::MessageType");
+        qRegisterMetaType<CloudRenderingProtocol::MessageSharedPtr>("CloudRenderingProtocol::MessageSharedPtr");
+        qRegisterMetaType<CloudRenderingProtocol::MessageSharedPtrList>("CloudRenderingProtocol::MessageSharedPtrList");
+        qRegisterMetaType<CloudRenderingProtocol::BinaryMessageData>("CloudRenderingProtocol::BinaryMessageData");
+    }
 
     /// Parses a message from input JSON data.
     /** @param json JSON data.
