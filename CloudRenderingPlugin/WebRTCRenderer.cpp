@@ -16,8 +16,6 @@
 #include "WebRTCWebSocketClient.h"
 #include "WebRTCPeerConnection.h"
 
-#include "CoreJsonUtils.h" // remove
-
 #include "CloudRenderingPlugin.h"
 
 #include "Framework.h"
