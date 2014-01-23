@@ -16,6 +16,8 @@
 #include "WebRTCWebSocketClient.h"
 #include "WebRTCPeerConnection.h"
 
+#include "CoreJsonUtils.h" // remove
+
 #include "CloudRenderingPlugin.h"
 
 #include "Framework.h"
@@ -31,6 +33,8 @@
 #include <QImage>
 #include <QKeyEvent>
 #include <QMouseEvent>
+#include <QGraphicsScene>
+#include <QGraphicsItem>
 #include <QDebug>
 
 #include "OgreRenderingModule.h"
@@ -208,7 +212,7 @@ namespace WebRTC
                             if (assigned->error == CloudRenderingProtocol::Room::RoomAssignedMessage::RQE_NoError)
                             {
                                 room_.id = assigned->roomId;
-                                LogInfo(LC + "Renderer was assigned to room " + room_.id);
+                                LogDebug(LC + "Renderer was assigned to room " + room_.id);
                             }
                             else
                                 LogError(LC + QString("RoomAssignedMessage sent a error code %1 to renderer, this should never happen as we are not requesting for a room!")
@@ -223,10 +227,10 @@ namespace WebRTC
                         CloudRenderingProtocol::Room::RoomUserJoinedMessage *joined = dynamic_cast<CloudRenderingProtocol::Room::RoomUserJoinedMessage*>(message.get());
                         if (joined)
                         {
-                            LogInfo(LC + "Peers joined to the renderers room");
+                            LogDebug(LC + "Peers joined to the renderers room");
                             foreach(const QString &joinedPeerId, joined->peerIds)
                             {
-                                LogInfo(LC + QString("  peerId = %1").arg(joinedPeerId));
+                                LogDebug(LC + QString("  peerId = %1").arg(joinedPeerId));
                                 room_.AddPeer(joinedPeerId);
                                 
                                 /// @todo This will be changed to something else in the future, for now send offer to each joining client.
@@ -423,10 +427,10 @@ namespace WebRTC
         UiGraphicsView *view = (plugin_ ? plugin_->GetFramework()->Ui()->GraphicsView() : 0);
         if (!view)
             return;
-        
+
         // type: 'keyDown' or 'keyUp'
         QEvent::Type type = (data.value("action", "").toString() == "keyDown" ? QEvent::KeyPress : QEvent::KeyRelease);
-        
+
         // modifiers
         Qt::KeyboardModifiers modifiers = Qt::NoModifier;
         if (data.value("altKey", false).toBool())
@@ -448,26 +452,29 @@ namespace WebRTC
             return;
         }
         
-        QString text = QKeySequence(key).toString(QKeySequence::NativeText).toLower();
+        QString text = (key != Qt::Key_unknown ? QKeySequence(key).toString(QKeySequence::NativeText).toLower() : "");
         if (text == "space")
             text = " ";
         else if (text == "tab")
             text = "    ";
+        else if (key == Qt::Key_Shift || key == Qt::Key_Control || key == Qt::Key_Alt || key == Qt::Key_AltGr)
+            text = "";
         if (data.value("shiftKey", false).toBool())
             text = text.toUpper();
         
-        QKeyEvent *e = new QKeyEvent(type, key, modifiers, text);
+        QKeyEvent e(type, key, modifiers, text);
         if (IsLogChannelEnabled(LogChannelDebug))
-            qDebug() << e;
-        QApplication::postEvent(view, e);
+            qDebug() << &e;
+        QApplication::sendEvent(view, &e);
     }
 
     void Renderer::PostMouseEvent(const QVariantMap &data)
     {
         UiGraphicsView *view = (plugin_ ? plugin_->GetFramework()->Ui()->GraphicsView() : 0);
-        if (!view)
+        UiMainWindow *window = (plugin_ ? plugin_->GetFramework()->Ui()->MainWindow() : 0);
+        if (!view || !window)
             return;
-            
+
         if (!data.contains("x") || !data.contains("y"))
             return;
 
@@ -489,41 +496,85 @@ namespace WebRTC
 
         // type: 'move', 'press' or 'release'
         QString typeStr = data.value("action", "").toString();
-        QEvent::Type type = (typeStr == "move" ? QEvent::MouseMove : (typeStr == "press" ? QEvent::MouseButtonPress : QEvent::MouseButtonRelease));       
+        QEvent::Type type = (typeStr == "move" ? QEvent::MouseMove : (typeStr == "press" ? QEvent::MouseButtonPress : (typeStr == "doublepress" ? QEvent::MouseButtonDblClick : QEvent::MouseButtonRelease)));       
 
         // button
-        if (type != QEvent::MouseMove)
-            inputState_.mouseButtons = Qt::NoButton;
+        inputState_.mouseButtons = Qt::NoButton;
 
         Qt::MouseButton button = Qt::NoButton;
         if (data.value("leftButton", false).toBool())
         {
-            button = Qt::LeftButton;
+            if (button == Qt::NoButton)
+                button = Qt::LeftButton;
             inputState_.mouseButtons |= Qt::LeftButton;
         }
         if (data.value("rightButton", false).toBool())
         {
-            button = Qt::RightButton;
+            if (button == Qt::NoButton)
+                button = Qt::RightButton;
             inputState_.mouseButtons |= Qt::RightButton;
         }
         if (data.value("middleButton", false).toBool())
         {
-            button = Qt::MiddleButton;
+            if (button == Qt::NoButton)
+                button = Qt::MiddleButton;
             inputState_.mouseButtons |= Qt::MiddleButton;
         }
 
-        // position [0.0, 1.0]
-        QRect mainWindowRect = view->geometry();
-        QPoint mousePos(mainWindowRect.width() * x, mainWindowRect.height() * y);
-        
-        QMouseEvent *e = 0;
-        if (type != QEvent::MouseMove)
-            e = new QMouseEvent(type, mousePos, button, inputState_.mouseButtons, inputState_.keyboardModifiers);
-        else
-            e = new QMouseEvent(type, mousePos, QCursor::pos(), Qt::NoButton, inputState_.mouseButtons, inputState_.keyboardModifiers);
-        if (IsLogChannelEnabled(LogChannelDebug))
-            qDebug() << e;
-        QApplication::postEvent(view->viewport(), e);
+        // Check another extra prop if button could not be resolved.
+        if ((type == QEvent::MouseButtonRelease || type == QEvent::MouseButtonPress) && button == Qt::NoButton)
+        {
+            int releaseExtraCheck = data.value("which", -1).toInt();
+            if (releaseExtraCheck == -1)
+                releaseExtraCheck = data.value("button", -1).toInt();
+
+            if (releaseExtraCheck == 1)
+                button = Qt::LeftButton;
+            else if (releaseExtraCheck == 3)
+                button = Qt::RightButton;
+            else if (releaseExtraCheck == 2)
+                button = Qt::MiddleButton;
+            if (button != Qt::NoButton)
+                inputState_.mouseButtons = button;
+        }
+
+        // position from [0.0, 1.0] to application window coordinates
+        QRect renderingSurfaceRect = view->geometry();
+        QPoint mousePos(renderingSurfaceRect.width() * x, renderingSurfaceRect.height() * y);
+        QPoint globalPos(window->geometry().topLeft() + renderingSurfaceRect.topLeft() + mousePos);
+
+        // release or press event: fake a mouse move to this coordinate first
+        if (type == QEvent::MouseButtonPress)
+        {
+            Qt::MouseButton moveButton = (type == QEvent::MouseButtonRelease ? button : Qt::NoButton);
+            QMouseEvent *e = QMouseEvent::createExtendedMouseEvent(QEvent::MouseMove, mousePos, globalPos, 
+                 moveButton, moveButton, inputState_.keyboardModifiers); 
+            QApplication::sendEvent(view->viewport(), e);
+            SAFE_DELETE(e);
+        }
+
+        QMouseEvent *e = QMouseEvent::createExtendedMouseEvent(type, mousePos, globalPos, button, inputState_.mouseButtons, inputState_.keyboardModifiers); 
+        QApplication::sendEvent(view->viewport(), e);
+        SAFE_DELETE(e);
+
+        if ((type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick) && plugin_->GetFramework()->Input()->ItemUnderMouse() == 0)
+            ClearInputFocus();
+    }
+    
+    void Renderer::ClearInputFocus()
+    {
+        UiGraphicsView *view = (plugin_ ? plugin_->GetFramework()->Ui()->GraphicsView() : 0);
+        if (view && view->scene() && view->scene()->focusItem())
+        {
+            view->scene()->setFocusItem(0);
+            view->scene()->clearFocus();
+
+            if (view->scene()->focusItem())
+            {
+                QFocusEvent fe(QEvent::FocusOut);
+                QApplication::sendEvent(view->scene(), &fe);
+            }
+        }
     }
     
     void Renderer::OnDataChannelMessage(const CloudRenderingProtocol::BinaryMessageData &data)
@@ -632,13 +683,11 @@ namespace WebRTC
     {
         if (updateFps == 0)
             updateFps = 1;
-        qDebug() << "SetInterval" << updateFps;
         interval_ = 1.0f / static_cast<float>(updateFps);
     }
 
     void TundraRenderer::SetSize(int width, int height)
     {
-        qDebug() << "SetSize" << width << height;
         pendingWindowResize_ = QSize(width, height + 21); // + 21 is the magic hack for QMenuBar height
     }
 
@@ -654,8 +703,6 @@ namespace WebRTC
             if (iter.lock().get() == consumer.lock().get())
                 return;
         }
-
-        qDebug() << "Registering consumer" << consumer.lock().get();
         consumers_ << consumer;
     }
     
@@ -667,7 +714,6 @@ namespace WebRTC
             TundraRendererConsumerWeakPtr &iter = consumers_[i];
             if (iter.expired() || iter.lock().get() == consumer.lock().get())
             {
-                qDebug() << "Removing consumer" << consumer.lock().get();
                 consumers_.removeAt(i);
                 i--;
             }
@@ -689,7 +735,7 @@ namespace WebRTC
     }
     
     void TundraRenderer::OnPostFrameUpdate(float frametime)
-    {
+    {       
         // Choking
         t_ += frametime;
         if (t_ < interval_)
@@ -699,7 +745,7 @@ namespace WebRTC
         // Apply pending window resize
         if (pendingWindowResize_.isValid() && framework_->Ui()->MainWindow())
         {
-            qDebug() << "Executing resize" << pendingWindowResize_;
+            LogDebug(QString("[TundraRenderer]: Executing appication window resize to requested video size %1 x %2").arg(pendingWindowResize_.width()).arg(pendingWindowResize_.height()));
             if (framework_->Ui()->MainWindow()->isMinimized() || framework_->Ui()->MainWindow()->isMaximized())
                 framework_->Ui()->MainWindow()->showNormal();
 

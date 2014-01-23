@@ -44,9 +44,6 @@ namespace WebRTC
         /// cricket::VideoCapturer overrides.
         bool GetPreferredFourccs(std::vector<uint32>* fourccs);
         
-    private slots:
-        void OnPostUpdate(float frametime);
-        
     private:
         Framework *framework_;
         bool running_;

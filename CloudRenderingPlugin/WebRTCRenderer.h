@@ -67,6 +67,7 @@ namespace WebRTC
         
         void PostKeyboardEvent(const QVariantMap &data);
         void PostMouseEvent(const QVariantMap &data);
+        void ClearInputFocus();
 
     private:
         QString LC;

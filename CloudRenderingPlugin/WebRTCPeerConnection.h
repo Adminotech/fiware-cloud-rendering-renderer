@@ -39,6 +39,7 @@ namespace WebRTC
         PeerConnection(Framework *framework, const QString &peerId);
         ~PeerConnection();
         
+        /// Connection settings.
         struct ConnectionSettings
         {
             /// If default OS microphone audio is sent.
@@ -60,7 +61,8 @@ namespace WebRTC
                 data(_data)
             {
             }
-           
+
+            /// Returns if anything should be sent to the WebRTC connection.
             bool AllDisabled() const
             {
                 return (!audio && !webcamera && !rendering && !data);
@@ -163,6 +165,7 @@ namespace WebRTC
     
     private:
         bool InitializePeerConnection(const ConnectionSettings &settings);
+        bool IsPreviewRenderingEnabled() const;
         
         QString LC;
         
@@ -209,15 +212,8 @@ namespace WebRTC
             return new talk_base::RefCountedObject<DummySetSessionDescriptionObserver>();
         }
         
-        virtual void OnSuccess()
-        {
-            qDebug() << "  >> DummySetSessionDescriptionObserver success";
-        }
-        
-        virtual void OnFailure(const std::string& error)
-        {
-            qDebug() << "  >> DummySetSessionDescriptionObserver Error:" << error.c_str();
-        }
+        virtual void OnSuccess() {}
+        virtual void OnFailure(const std::string& error) {}
 
     protected:
         DummySetSessionDescriptionObserver() {}

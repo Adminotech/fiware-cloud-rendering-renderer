@@ -334,6 +334,9 @@ namespace CloudRenderingProtocol
     /// Dump json with pretty indentation to stdout.
     void DumpPrettyJSON(const QByteArray &json);
     
+    /// Dump json with pretty indentation to stdout.
+    void DumpPrettyJSON(const QVariant &data);
+    
     namespace Signaling
     {
         /// Offer message

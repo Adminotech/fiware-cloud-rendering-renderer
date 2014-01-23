@@ -51,8 +51,12 @@ namespace CloudRenderingProtocol
 
     void DumpPrettyJSON(const QByteArray &json)
     {
-        QVariant temp = TundraJson::Parse(json);
-        qDebug() << endl << qPrintable(TundraJson::Serialize(temp, TundraJson::IndentFull)) << endl;
+        DumpPrettyJSON(TundraJson::Parse(json));
+    }
+
+    void DumpPrettyJSON(const QVariant &data)
+    {
+        qDebug() << endl << qPrintable(TundraJson::Serialize(data, TundraJson::IndentFull)) << endl;
     }
 
     // Message parser
@@ -101,6 +105,7 @@ namespace CloudRenderingProtocol
             if (!message->FromData(data))
             {
                 LogError(QString("CreateMessageFromJSON: Failed to serialize message with type name '%1' from data").arg(messageTypeName));
+                DumpPrettyJSON(data);
                 message.reset();
             }
         }

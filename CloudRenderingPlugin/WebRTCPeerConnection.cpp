@@ -117,12 +117,12 @@ namespace WebRTC
         
         if (!localIceCandidatesResolved_)
         {
-            LogInfo(QString("  >> Storing %1 remote ICE candidates for later use...").arg(iceCandidates.size()));
+            LogDebug(QString("  >> Storing %1 remote ICE candidates for later use...").arg(iceCandidates.size()));
             pendingRemoteIceCandidates_ += iceCandidates;
             return;
         }
         else
-            LogInfo(LC + "Setting remote ICE candidates");
+            LogDebug(LC + "Setting remote ICE candidates");
 
         for (int i=0; i<iceCandidates.size(); ++i)
         {
@@ -136,7 +136,7 @@ namespace WebRTC
             }
 
             if (peerConnection_->AddIceCandidate(candidate.get()))
-                LogInfo(LC + QString("  >> Added remote ICE candidate %1").arg(i));
+                LogDebug(LC + QString("  >> Added remote ICE candidate %1").arg(i));
             else
                 LogError(LC + QString("  >> Failed to add received ice candidate %1").arg(i));
         }
@@ -144,7 +144,9 @@ namespace WebRTC
     
     void PeerConnection::HandleOfferOrAnswer(const WebRTC::SDP &remoteSdp, const WebRTC::ICECandidateList &iceCandidates, ConnectionSettings answerSettings)
     {
-        qDebug() << "HandleOfferOrAnswer";
+        if (IsLogChannelEnabled(LogChannelDebug))
+            qDebug() << "HandleOfferOrAnswer";
+
         if (!peerConnection_.get() && !InitializePeerConnection(answerSettings))
             return;
             
@@ -154,14 +156,16 @@ namespace WebRTC
             LogError(LC + "Failed to create WebRTC SessionDescriptionInterface from remote peer information.");
             return;
         }
-        qDebug() << "  >> Setting remote SDP";
+        if (IsLogChannelEnabled(LogChannelDebug))
+            qDebug() << "  >> Setting remote SDP";
         peerConnection_->SetRemoteDescription(DummySetSessionDescriptionObserver::Create(), sdp);
-        qDebug() << "  >> DONE";
+        if (IsLogChannelEnabled(LogChannelDebug))
+            qDebug() << "  >> DONE";
         remoteSDPSet_ = true;
         
         if (sdp->type() == webrtc::SessionDescriptionInterface::kOffer)
         {
-            LogInfo(LC + "  >> Creating answer SDP");
+            LogDebug(LC + "  >> Creating answer SDP");
             peerConnection_->CreateAnswer(this, NULL);
         }
         
@@ -177,7 +181,9 @@ namespace WebRTC
         
         if (settings.audio)
         {
-            qDebug() << "  >> Adding audio stream";
+            if (IsLogChannelEnabled(LogChannelDebug))
+                qDebug() << "  >> Adding audio stream";
+
             talk_base::scoped_refptr<webrtc::AudioTrackInterface> audioTrack(peerConnectionFactory_->CreateAudioTrack(
                 kAudioLabel, peerConnectionFactory_->CreateAudioSource(NULL)));
             stream->AddTrack(audioTrack);
@@ -185,28 +191,36 @@ namespace WebRTC
         
         if (settings.webcamera)
         {
-            qDebug() << "  >> Adding web camera video stream";
+            if (IsLogChannelEnabled(LogChannelDebug))
+                qDebug() << "  >> Adding web camera video stream";
+
             talk_base::scoped_refptr<webrtc::VideoTrackInterface> videoTrack(peerConnectionFactory_->CreateVideoTrack(
                 kVideoLabel, peerConnectionFactory_->CreateVideoSource(OpenVideoCaptureDevice(), NULL)));
             stream->AddTrack(videoTrack);
 
-            activeRenderers_ << new VideoRenderer(videoTrack, true, "Local Video Stream");
+            if (IsPreviewRenderingEnabled())
+                activeRenderers_ << new VideoRenderer(videoTrack, true, "Local Video Stream");
         }
 
         // Server rendering video from server
         if (settings.rendering)
         {
-            qDebug() << "  >> Adding 3D rendering stream";
+            if (IsLogChannelEnabled(LogChannelDebug))
+                qDebug() << "  >> Adding 3D rendering stream";
+
             talk_base::scoped_refptr<webrtc::VideoTrackInterface> videoTrack(peerConnectionFactory_->CreateVideoTrack(
                 kVideoLabel, peerConnectionFactory_->CreateVideoSource(OpenTundraCaptureDevice(), NULL)));
             stream->AddTrack(videoTrack);
 
-            activeRenderers_ << new VideoRenderer(videoTrack, false, "Local Tundra Stream"); 
+            if (IsPreviewRenderingEnabled())
+                activeRenderers_ << new VideoRenderer(videoTrack, false, "Local Tundra Stream"); 
         }
         
         if (settings.data)
         {
-            qDebug() << "  >> Adding data channel";
+            if (IsLogChannelEnabled(LogChannelDebug))
+                qDebug() << "  >> Adding data channel";
+
             dataChannel_ = peerConnection_->CreateDataChannel(kDataLabel, NULL);
             if (dataChannel_.get())
                 dataChannel_->RegisterObserver(this);
@@ -297,12 +311,12 @@ namespace WebRTC
     
     void PeerConnection::OnSignalingChange(webrtc::PeerConnectionInterface::SignalingState new_state)
     {
-        LogInfo(LC + "OnSignalingChange() " + SignalingStateToString(new_state));
+        LogDebug(LC + "OnSignalingChange() " + SignalingStateToString(new_state));
     }
 
     void PeerConnection::OnStateChange(StateType state_changed)
     {
-        LogInfo(LC + "OnStateChange : " + (state_changed == kSignalingState ? "SignalingState" : "IceState"));
+        LogDebug(LC + "OnStateChange : " + (state_changed == kSignalingState ? "SignalingState" : "IceState"));
     }
 
     void PeerConnection::OnAddStream(webrtc::MediaStreamInterface* stream)
@@ -311,7 +325,7 @@ namespace WebRTC
             .arg(stream->label().c_str()).arg(stream->GetVideoTracks().size()).arg(stream->GetAudioTracks().size()));
         
         talk_base::scoped_refptr<webrtc::AudioTrackInterface> audioTrack = stream->FindAudioTrack(kAudioLabel);
-        if (audioTrack.get())
+        if (audioTrack.get() && IsLogChannelEnabled(LogChannelDebug))
         {
             qDebug() << "  >> Audio track:" << audioTrack->id().c_str() << audioTrack->enabled();
             qDebug() << audioTrack->GetRenderer();
@@ -319,9 +333,11 @@ namespace WebRTC
         talk_base::scoped_refptr<webrtc::VideoTrackInterface> videoTrack = stream->FindVideoTrack(kVideoLabel);
         if (videoTrack.get())
         {
-            qDebug() << "  >> Video track:" << videoTrack->id().c_str() << videoTrack->enabled();
-            activeRenderers_ << new VideoRenderer(videoTrack, false, QString("Remote Stream %1").arg(activeRenderers_.size()+1));
-            //activeStreams_ << stream;
+            if (IsLogChannelEnabled(LogChannelDebug))
+                qDebug() << "  >> Video track:" << videoTrack->id().c_str() << videoTrack->enabled();
+                
+            if (IsPreviewRenderingEnabled())
+                activeRenderers_ << new VideoRenderer(videoTrack, false, QString("Remote Stream %1").arg(activeRenderers_.size()+1));
         }
         
         //stream->Release();
@@ -329,18 +345,18 @@ namespace WebRTC
 
     void PeerConnection::OnRemoveStream(webrtc::MediaStreamInterface* stream)
     {
-        LogInfo(LC + "OnRemoveStream()");
+        LogDebug(LC + "OnRemoveStream()");
     }
 
     void PeerConnection::OnDataChannel(webrtc::DataChannelInterface* data_channel)
     {
-        LogInfo(LC + "Incoming data channel with label = " + QString::fromStdString(data_channel->label()) + ". Registering as observer.");
+        LogDebug(LC + "Incoming data channel with label = " + QString::fromStdString(data_channel->label()) + ". Registering as observer.");
         data_channel->RegisterObserver(this);
     }
 
     void PeerConnection::OnRenegotiationNeeded()
     {
-        LogInfo(LC + "-------------------------------------- OnRenegotiationNeeded()");
+        LogDebug(LC + "-------------------------------------- OnRenegotiationNeeded()");
         /// @todo Call CreateOffer when this is triggered on an ongoing connection (open state)
         //if (peerConnection_)
         //    peerConnection_->CreateOffer(this, NULL);
@@ -348,17 +364,17 @@ namespace WebRTC
 
     void PeerConnection::OnIceConnectionChange(webrtc::PeerConnectionInterface::IceConnectionState new_state)
     {
-        LogInfo(LC + "OnIceConnectionChange: " + IceConnectionStateToString(new_state));
+        LogDebug(LC + "OnIceConnectionChange: " + IceConnectionStateToString(new_state));
     }
 
     void PeerConnection::OnIceGatheringChange(webrtc::PeerConnectionInterface::IceGatheringState new_state)
     {
-        LogInfo(LC + "OnIceGatheringChange: " + IceGatheringStateToString(new_state));
+        LogDebug(LC + "OnIceGatheringChange: " + IceGatheringStateToString(new_state));
     }
 
     void PeerConnection::OnIceCandidate(const webrtc::IceCandidateInterface* candidate)
     {
-        LogInfo(LC + "OnIceCandidate()");
+        LogDebug(LC + "OnIceCandidate()");
         localIceCandidatesResolved_ = false;
         
         std::string sdp; candidate->ToString(&sdp);
@@ -367,8 +383,9 @@ namespace WebRTC
 
     void PeerConnection::OnIceComplete()
     {
-        LogInfo(LC + "OnIceComplete()");
-        qDebug() << "  >> Pending remote ICE candidates" << pendingRemoteIceCandidates_.size();
+        LogDebug(LC + "OnIceComplete()");
+        if (IsLogChannelEnabled(LogChannelDebug))
+            qDebug() << "  >> Pending remote ICE candidates" << pendingRemoteIceCandidates_.size();
         
         localIceCandidatesResolved_ = true;
         
@@ -387,9 +404,9 @@ namespace WebRTC
         if (!peerConnection_.get())
             return;
 
-        LogInfo(LC + "  >> Setting local SDP");
+        LogDebug(LC + "  >> Setting local SDP");
         peerConnection_->SetLocalDescription(DummySetSessionDescriptionObserver::Create(), desc);
-        LogInfo(LC + "  >> DONE");
+        LogDebug(LC + "  >> DONE");
 
         std::string sdp; desc->ToString(&sdp);
         localSDP_ = WebRTC::SDP(QString::fromStdString(desc->type()), QString::fromStdString(sdp));
@@ -407,21 +424,21 @@ namespace WebRTC
     {
         if (localSDPResolved_ && !localSDPEmitted_)
         {
-            qDebug() << "Emitting local SDP";
+            LogDebug(LC + "Emitting local SDP");
             localSDPEmitted_ = true;
             emit LocalSDPResolved(localSDP_);
         }
             
         if (localIceCandidatesResolved_ && !localIceEmitted_)
         {
-            qDebug() << "Emitting local ICE";
+            LogDebug(LC + "Emitting local ICE");
             localIceEmitted_ = true;
             emit LocaleIceCandidatesResolved(pendingLocalIceCandidates_);
         }
 
         if (localSDPResolved_ && localIceCandidatesResolved_ && !localBothEmitted_)
         {
-            qDebug() << "Emitting BOTH local SDP and ICE";
+            LogDebug(LC + "Emitting BOTH local SDP and ICE");
             localBothEmitted_ = true;
             emit LocalConnectionDataResolved(localSDP_, pendingLocalIceCandidates_);
         }
@@ -445,12 +462,15 @@ namespace WebRTC
     {
         if (dataChannel_.get())
         {
-            qDebug() << "webrtc::DataChannelObserver::OnStateChange" << dataChannel_->state();
-            if (dataChannel_->state() == webrtc::DataChannelInterface::kOpen)
+            if (IsLogChannelEnabled(LogChannelDebug))
             {
-                qDebug() << "    >> Sending 'hello world'";
-                webrtc::DataBuffer buff(std::string("hello world"));
-                dataChannel_->Send(buff);
+                qDebug() << "webrtc::DataChannelObserver::OnStateChange" << dataChannel_->state();
+                if (dataChannel_->state() == webrtc::DataChannelInterface::kOpen)
+                {
+                    qDebug() << "    >> Sending 'hello world'";
+                    webrtc::DataBuffer buff(std::string("hello world"));
+                    dataChannel_->Send(buff);
+                }
             }
         }
         else
@@ -535,6 +555,11 @@ namespace WebRTC
             LogError(LC + "Failed to create PeerConnectionFactory!");
             
         return false;
+    }
+    
+    bool PeerConnection::IsPreviewRenderingEnabled() const
+    {
+        return (framework_ ? framework_->HasCommandLineParameter("--cloudRenderingShowStreamPreview") : false);
     }
 
     bool PeerConnection::AreLocalIceCandidatesResolved() const
