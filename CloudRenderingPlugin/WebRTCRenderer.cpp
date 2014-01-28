@@ -479,48 +479,41 @@ namespace WebRTC
         bool ok = false;
         float x = data.value("x").toFloat(&ok);
         if (!ok) return; ok = false;       
-        if (x > 1.0f)
+        if (x < 0.0f)
         {
-            LogWarning(LC + "Received mouse event with x >= 1.0!");
+            LogWarning(LC + "Received mouse event with x < 0.0 - Clamping to 0.0.");
+            x = 0.0f;
+        }
+        else if (x > 1.0f)
+        {
+            LogWarning(LC + "Received mouse event with x > 1.0 - Clamping to 1.0.");
             x = 1.0f;
         }
         float y = data.value("y").toFloat(&ok);
         if (!ok) return;
-        if (y > 1.0f)
+        if (y < 0.0f)
         {
-            LogWarning(LC + "Received mouse event with y >= 1.0!");
+            LogWarning(LC + "Received mouse event with y < 0.0 - Clamping to 0.0");
+            x = 0.0f;
+        }
+        else if (y > 1.0f)
+        {
+            LogWarning(LC + "Received mouse event with y > 1.0 - Clamping to 1.0");
             y = 1.0f;
         }
 
-        // type: 'move', 'press' or 'release'
+        // type: 'move', 'press', 'doublepress' or 'release'
         QString typeStr = data.value("action", "").toString();
+        if (typeStr.isEmpty())
+            return;
         QEvent::Type type = (typeStr == "move" ? QEvent::MouseMove : (typeStr == "press" ? QEvent::MouseButtonPress : (typeStr == "doublepress" ? QEvent::MouseButtonDblClick : QEvent::MouseButtonRelease)));       
 
-        // button
+        // buttons
+        Qt::MouseButton button = Qt::NoButton;
         inputState_.mouseButtons = Qt::NoButton;
 
-        Qt::MouseButton button = Qt::NoButton;
-        if (data.value("leftButton", false).toBool())
-        {
-            if (button == Qt::NoButton)
-                button = Qt::LeftButton;
-            inputState_.mouseButtons |= Qt::LeftButton;
-        }
-        if (data.value("rightButton", false).toBool())
-        {
-            if (button == Qt::NoButton)
-                button = Qt::RightButton;
-            inputState_.mouseButtons |= Qt::RightButton;
-        }
-        if (data.value("middleButton", false).toBool())
-        {
-            if (button == Qt::NoButton)
-                button = Qt::MiddleButton;
-            inputState_.mouseButtons |= Qt::MiddleButton;
-        }
-
         // Check another extra prop if button could not be resolved.
-        if ((type == QEvent::MouseButtonRelease || type == QEvent::MouseButtonPress) && button == Qt::NoButton)
+        if (type == QEvent::MouseButtonRelease || type == QEvent::MouseButtonDblClick || type == QEvent::MouseButtonPress)
         {
             int releaseExtraCheck = data.value("which", -1).toInt();
             if (releaseExtraCheck == -1)
@@ -534,6 +527,26 @@ namespace WebRTC
                 button = Qt::MiddleButton;
             if (button != Qt::NoButton)
                 inputState_.mouseButtons = button;
+        }
+
+        // Additionally check all the buttons pressed down at the moment.
+        if (button != Qt::LeftButton && data.value("leftButton", false).toBool())
+        {
+            if (button == Qt::NoButton)
+                button = Qt::LeftButton;
+            inputState_.mouseButtons |= Qt::LeftButton;
+        }
+        if (button != Qt::RightButton && data.value("rightButton", false).toBool())
+        {
+            if (button == Qt::NoButton)
+                button = Qt::RightButton;
+            inputState_.mouseButtons |= Qt::RightButton;
+        }
+        if (button != Qt::MiddleButton && data.value("middleButton", false).toBool())
+        {
+            if (button == Qt::NoButton)
+                button = Qt::MiddleButton;
+            inputState_.mouseButtons |= Qt::MiddleButton;
         }
 
         // position from [0.0, 1.0] to application window coordinates
@@ -554,6 +567,15 @@ namespace WebRTC
         QMouseEvent *e = QMouseEvent::createExtendedMouseEvent(type, mousePos, globalPos, button, inputState_.mouseButtons, inputState_.keyboardModifiers); 
         QApplication::sendEvent(view->viewport(), e);
         SAFE_DELETE(e);
+        
+        // double press: fake a release event to make it register correctly
+        if (type == QEvent::MouseButtonDblClick)
+        {
+            QMouseEvent *e = QMouseEvent::createExtendedMouseEvent(QEvent::MouseButtonRelease, mousePos, globalPos, 
+                button, inputState_.mouseButtons, inputState_.keyboardModifiers); 
+            QApplication::sendEvent(view->viewport(), e);
+            SAFE_DELETE(e);
+        }
 
         if ((type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick) && plugin_->GetFramework()->Input()->ItemUnderMouse() == 0)
             ClearInputFocus();
