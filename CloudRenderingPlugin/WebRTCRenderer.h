@@ -16,13 +16,13 @@
 
 #include <QSize>
 
-namespace Ogre
-{
-    class D3D9RenderWindow;
-}
+namespace Ogre { class RenderWindow; }
 
+#ifdef DIRECTX_ENABLED
+namespace Ogre { class D3D9RenderWindow; }
 struct IDirect3DDevice9;
 struct IDirect3DTexture9;
+#endif
 
 namespace WebRTC
 {
@@ -120,13 +120,19 @@ namespace WebRTC
     private:
         CloudRenderingPlugin *plugin_;
         Framework *framework_;
-        
+
+        // Check that a target texture is ready for the render results.        
         void CheckTexture(int width = -1, int height = -1);
-        
+
+        // Get the Ogre rendering window.
+        Ogre::RenderWindow *OgreRenderWindow() const;
+
+#ifdef DIRECTX_ENABLED
         Ogre::D3D9RenderWindow *D3DRenderWindow() const;
         IDirect3DDevice9 *D3DDevice() const;
         IDirect3DTexture9 *d3dTexture_;
-        
+#endif
+
         QSize pendingWindowResize_;
         bool fatalTextureError_;
         float interval_;

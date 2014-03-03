@@ -38,15 +38,19 @@
 #include "OgreRenderingModule.h"
 #include "Renderer.h"
 #include "TextureAsset.h"
+
 #include "OgreTextureManager.h"
 #include "OgreTexture.h"
 #include "OgreHardwarePixelBuffer.h"
 
+#include <OgreRenderWindow.h>
+#ifdef DIRECTX_ENABLED
 #include <OgreD3D9HardwarePixelBuffer.h>
 #include <OgreD3D9RenderWindow.h>
 
 #include <d3d9.h>
 #include <d3dx9tex.h>
+#endif
 
 namespace WebRTC
 {
@@ -654,9 +658,11 @@ namespace WebRTC
     TundraRenderer::TundraRenderer(CloudRenderingPlugin *plugin, uint updateFps) :
         plugin_(plugin),
         framework_(plugin->GetFramework()),
+#ifdef DIRECTX_ENABLED
+        d3dTexture_(0),
+#endif
         interval_(1.0f / static_cast<float>(updateFps)),
         t_(1.0f),
-        d3dTexture_(0),
         fatalTextureError_(false)
     {
         connect(framework_->Frame(), SIGNAL(PostFrameUpdate(float)), SLOT(OnPostFrameUpdate(float)));
@@ -665,14 +671,17 @@ namespace WebRTC
     TundraRenderer::~TundraRenderer()
     {
         consumers_.clear();
-        
+
+#ifdef DIRECTX_ENABLED
         if (d3dTexture_)
             d3dTexture_->Release();
         d3dTexture_ = 0;
+#endif
     }
     
     void TundraRenderer::CheckTexture(int width, int height)
     {
+#ifdef DIRECTX_ENABLED
         if (fatalTextureError_)
             return;
         if (d3dTexture_)
@@ -685,7 +694,7 @@ namespace WebRTC
             LogError("IDirect3DDevice9 is null");
             return;
         }
-        
+
         if (width <= 0)
             width = renderWindow->getWidth();
         if (height <= 0)
@@ -697,8 +706,30 @@ namespace WebRTC
             LogError("Failed to create d3d texture");
             return;
         }
+#endif
     }
     
+    Ogre::RenderWindow *TundraRenderer::OgreRenderWindow() const
+    {
+        OgreRenderer::OgreRenderingModule *ogreModule = framework_->Module<OgreRenderer::OgreRenderingModule>();
+        if (!ogreModule || !ogreModule->Renderer())
+            return 0;
+        return ogreModule->Renderer()->GetCurrentRenderWindow();
+    }
+
+#ifdef DIRECTX_ENABLED
+    Ogre::D3D9RenderWindow *TundraRenderer::D3DRenderWindow() const
+    {
+        return dynamic_cast<Ogre::D3D9RenderWindow*>(OgreRenderWindow());
+    }
+
+    IDirect3DDevice9 *TundraRenderer::D3DDevice() const
+    {
+        Ogre::D3D9RenderWindow *d3d9rw = D3DRenderWindow();
+        return (d3d9rw != 0 ? d3d9rw->getD3D9Device() : 0);
+    }
+#endif
+
     void TundraRenderer::SetInterval(uint updateFps)
     {
         if (updateFps == 0)
@@ -739,21 +770,7 @@ namespace WebRTC
             }
         }
     }
-    
-    Ogre::D3D9RenderWindow *TundraRenderer::D3DRenderWindow() const
-    {
-        OgreRenderer::OgreRenderingModule *ogreModule = framework_->Module<OgreRenderer::OgreRenderingModule>();
-        if (!ogreModule || !ogreModule->Renderer())
-            return 0;
-        return dynamic_cast<Ogre::D3D9RenderWindow*>(ogreModule->Renderer()->GetCurrentRenderWindow());
-    }
-    
-    IDirect3DDevice9 *TundraRenderer::D3DDevice() const
-    {
-        Ogre::D3D9RenderWindow *d3d9rw = D3DRenderWindow();
-        return (d3d9rw != 0 ? d3d9rw->getD3D9Device() : 0);
-    }
-    
+
     void TundraRenderer::OnPostFrameUpdate(float frametime)
     {       
         // Choking
@@ -779,129 +796,166 @@ namespace WebRTC
         // No consumers, don't do any work.
         if (consumers_.isEmpty())
             return;
-            
-        CheckTexture();
-        
+
+        QImage imageOut;
+
+#ifdef DIRECTX_ENABLED
         Ogre::D3D9RenderWindow *renderWindow = D3DRenderWindow();
         IDirect3DDevice9 *d3dDevice = (renderWindow != 0 ? renderWindow->getD3D9Device() : 0);
-        if (!d3dDevice || !d3dTexture_)
-            return;
-   
-        PROFILE(CloudRendering_TundraRenderer_Update_Render_Texture)
         
-        Ogre::TexturePtr texture;
-        
-        // Select camera texture for both UI and 3D rendering.
-        // If not camera use the UI overlay texture as the source.
-        EC_Camera *camera = framework_->Renderer()->MainCameraComponent();
-        if (camera)
-            texture = camera->UpdateRenderTexture(true);
-        else
-            texture = Ogre::TextureManager::getSingleton().getByName("MainWindow RTT");
-
-        Ogre::D3D9HardwarePixelBuffer *buffer = texture.get() ? dynamic_cast<Ogre::D3D9HardwarePixelBuffer*>(texture->getBuffer().get()) : 0;
-        if (!buffer || buffer->getFormat() != Ogre::PF_A8R8G8B8)
-            return;
-
-        ELIFORP(CloudRendering_TundraRenderer_Update_Render_Texture)
-        PROFILE(CloudRendering_TundraRenderer_Check_Target_Size)
-        
-        ELIFORP(CloudRendering_TundraRenderer_Check_Target_Size)
-        PROFILE(CloudRendering_TundraRenderer_Check_Surfaces)
-
-        IDirect3DSurface9 *surfaceRenderTarget = buffer->getSurface(d3dDevice);
-        //IDirect3DSurface9 *surfaceRenderTarget = renderWindow->getRenderSurface();
-        IDirect3DSurface9 *surfaceTexture = 0; 
-        if (d3dTexture_->GetSurfaceLevel(0, &surfaceTexture) != D3D_OK)
+        // Is DirectX really in use?
+        /** @note DirectX is much much slower than the OpenGL provided API also on windows.
+            All WebRTC renderers are recommended to be ran with OpenGL (--opengl startup parameter) */
+        if (d3dDevice)
         {
-            LogError("Failed to get texture surface");
-            fatalTextureError_ = true;
-            d3dTexture_->Release();
-            d3dTexture_ = 0;
-            return;
-        }
+            CheckTexture();
+            if (!d3dTexture_)
+                return;
 
-        D3DSURFACE_DESC renderTargetDesc, textureDesc;
-        if (!surfaceRenderTarget || surfaceRenderTarget->GetDesc(&renderTargetDesc) != D3D_OK || surfaceTexture->GetDesc(&textureDesc) != D3D_OK)
-        {
-            LogError("Failed to get descs");
-            fatalTextureError_ = true;
-            d3dTexture_->Release();
-            d3dTexture_ = 0;
-            return;
-        }
-        if (renderTargetDesc.Width != textureDesc.Width || renderTargetDesc.Height != textureDesc.Height)
-        {
-            LogError("Incompatible texture sizes! Resizing target texture...");
-            d3dTexture_->Release();
-            d3dTexture_ = 0;
-            CheckTexture(renderTargetDesc.Width, renderTargetDesc.Height);
-            return;
-        }
-        
-        ELIFORP(CloudRendering_TundraRenderer_Check_Surfaces)
-        PROFILE(CloudRendering_TundraRenderer_Update_Texture)
-       
-        if (texture->getUsage() == Ogre::TU_RENDERTARGET)
-        {
-            // Render target, direct locking is not supported. Use special function to copy from
-            // GPU to CPU surface. Then lock on the CPU side one. This function has lots of rules and conditions
-            // for it to work: http://msdn.microsoft.com/en-us/library/windows/desktop/bb174405(v=vs.85).aspx
-            if (d3dDevice->GetRenderTargetData(surfaceRenderTarget, surfaceTexture) != D3D_OK)
+            PROFILE(CloudRendering_TundraRenderer_Update_Render_Texture)
+
+            // Select camera texture for both UI and 3D rendering.
+            // If not camera use the UI overlay texture as the source.
+            Ogre::TexturePtr texture;
+            EC_Camera *camera = framework_->Renderer()->MainCameraComponent();
+            if (camera)
+                texture = camera->UpdateRenderTexture(true);
+            else
+                texture = Ogre::TextureManager::getSingleton().getByName("MainWindow RTT");
+
+            Ogre::D3D9HardwarePixelBuffer *buffer = texture.get() ? dynamic_cast<Ogre::D3D9HardwarePixelBuffer*>(texture->getBuffer().get()) : 0;
+            if (!buffer || buffer->getFormat() != Ogre::PF_A8R8G8B8)
+                return;
+
+            ELIFORP(CloudRendering_TundraRenderer_Update_Render_Texture)
+            PROFILE(CloudRendering_TundraRenderer_Check_Target_Size)
+            
+            ELIFORP(CloudRendering_TundraRenderer_Check_Target_Size)
+            PROFILE(CloudRendering_TundraRenderer_Check_Surfaces)
+
+            IDirect3DSurface9 *surfaceRenderTarget = buffer->getSurface(d3dDevice);
+            //IDirect3DSurface9 *surfaceRenderTarget = renderWindow->getRenderSurface();
+            IDirect3DSurface9 *surfaceTexture = 0; 
+            if (d3dTexture_->GetSurfaceLevel(0, &surfaceTexture) != D3D_OK)
             {
-                LogError("Render target GetRenderTargetData data copy failed!");
+                LogError("Failed to get texture surface");
                 fatalTextureError_ = true;
                 d3dTexture_->Release();
                 d3dTexture_ = 0;
                 return;
             }
+
+            D3DSURFACE_DESC renderTargetDesc, textureDesc;
+            if (!surfaceRenderTarget || surfaceRenderTarget->GetDesc(&renderTargetDesc) != D3D_OK || surfaceTexture->GetDesc(&textureDesc) != D3D_OK)
+            {
+                LogError("Failed to get descs");
+                fatalTextureError_ = true;
+                d3dTexture_->Release();
+                d3dTexture_ = 0;
+                return;
+            }
+            if (renderTargetDesc.Width != textureDesc.Width || renderTargetDesc.Height != textureDesc.Height)
+            {
+                LogError("Incompatible texture sizes! Resizing target texture...");
+                d3dTexture_->Release();
+                d3dTexture_ = 0;
+                CheckTexture(renderTargetDesc.Width, renderTargetDesc.Height);
+                return;
+            }
             
-            // Other alternatives for various other conditions...
-            //if (D3DXLoadSurfaceFromSurface(surfaceTexture, NULL, NULL,
-            //    surfaceRenderTarget, NULL, NULL, D3DX_FILTER_BOX, 0) != D3D_OK)
-            //if (d3dDevice->StretchRect(surfaceRenderTarget, NULL, surfaceTexture, NULL, D3DTEXF_LINEAR) != D3D_OK)
-        }
-        else
-        {
-            // Not a render target, direct lock to the surface.
-            surfaceTexture = surfaceRenderTarget;
-        }
-        
-        ELIFORP(CloudRendering_TundraRenderer_Update_Texture)
-        PROFILE(CloudRendering_TundraRenderer_Texture_Lock)
-        
-        D3DLOCKED_RECT lock;
-
-        RECT lockRect = { 0, 0, texture->getWidth(), texture->getHeight() };
-        if (surfaceTexture->LockRect(&lock, &lockRect, D3DLOCK_READONLY) != D3D_OK)
-        {
-            LogError("Failed to lock in mem texture");
-            fatalTextureError_ = true;
-            d3dTexture_->Release();
-            d3dTexture_ = 0;
-            return;
-        }
-
-        ELIFORP(CloudRendering_TundraRenderer_Texture_Lock)
-        PROFILE(CloudRendering_TundraRenderer_Copy_Data)
-        
-        QImage image(texture->getWidth(), texture->getHeight(), QImage::Format_ARGB32);        
-        memcpy(static_cast<void*>(image.bits()), lock.pBits, image.byteCount()); 
-        surfaceTexture->UnlockRect();
-        
-        ELIFORP(CloudRendering_TundraRenderer_Copy_Data)
-        PROFILE(CloudRendering_TundraRenderer_UpdateConsumers)
-        
-        for (int i=0; i<consumers_.size(); ++i)
-        {
-            TundraRendererConsumerWeakPtr &iter = consumers_[i];
-            if (!iter.expired())
-                iter.lock()->OnTundraFrame(&image);
+            ELIFORP(CloudRendering_TundraRenderer_Check_Surfaces)
+            PROFILE(CloudRendering_TundraRenderer_Update_Texture)
+           
+            if (texture->getUsage() == Ogre::TU_RENDERTARGET)
+            {
+                // Render target, direct locking is not supported. Use special function to copy from
+                // GPU to CPU surface. Then lock on the CPU side one. This function has lots of rules and conditions
+                // for it to work: http://msdn.microsoft.com/en-us/library/windows/desktop/bb174405(v=vs.85).aspx
+                if (d3dDevice->GetRenderTargetData(surfaceRenderTarget, surfaceTexture) != D3D_OK)
+                {
+                    LogError("Render target GetRenderTargetData data copy failed!");
+                    fatalTextureError_ = true;
+                    d3dTexture_->Release();
+                    d3dTexture_ = 0;
+                    return;
+                }
+                
+                // Other alternatives for various other conditions...
+                //if (D3DXLoadSurfaceFromSurface(surfaceTexture, NULL, NULL,
+                //    surfaceRenderTarget, NULL, NULL, D3DX_FILTER_BOX, 0) != D3D_OK)
+                //if (d3dDevice->StretchRect(surfaceRenderTarget, NULL, surfaceTexture, NULL, D3DTEXF_LINEAR) != D3D_OK)
+            }
             else
             {
-                consumers_.removeAt(i);
-                i--;   
-            }            
+                // Not a render target, direct lock to the surface.
+                surfaceTexture = surfaceRenderTarget;
+            }
+            
+            ELIFORP(CloudRendering_TundraRenderer_Update_Texture)
+            PROFILE(CloudRendering_TundraRenderer_Texture_Lock)
+            
+            D3DLOCKED_RECT lock;
+
+            RECT lockRect = { 0, 0, texture->getWidth(), texture->getHeight() };
+            if (surfaceTexture->LockRect(&lock, &lockRect, D3DLOCK_READONLY) != D3D_OK)
+            {
+                LogError("Failed to lock in mem texture");
+                fatalTextureError_ = true;
+                d3dTexture_->Release();
+                d3dTexture_ = 0;
+                return;
+            }
+
+            ELIFORP(CloudRendering_TundraRenderer_Texture_Lock)
+            PROFILE(CloudRendering_TundraRenderer_Copy_Data)
+            
+            imageOut = QImage(texture->getWidth(), texture->getHeight(), QImage::Format_ARGB32);        
+            memcpy(static_cast<void*>(imageOut.bits()), lock.pBits, imageOut.byteCount()); 
+            surfaceTexture->UnlockRect();
+            
+            ELIFORP(CloudRendering_TundraRenderer_Copy_Data)
+        }
+#endif
+        // OpenGL
+        /** @note Even if built with DIRECTX_ENABLED --opengl renderer 
+            might have been selected and this code needs to run! */
+        if (imageOut.isNull())
+        {
+            PROFILE(CloudRendering_TundraRenderer_GL_Copy_Data)
+
+            Ogre::RenderWindow *renderWindow = OgreRenderWindow();
+            if (!renderWindow)
+                return;
+
+            // Simply set all the dimensions correctly and pass the QImage data 
+            // ptr for Ogre to blit to. This is not possible with DirectX renderer.
+            imageOut = QImage(renderWindow->getWidth(), renderWindow->getHeight(), QImage::Format_ARGB32);
+            Ogre::PixelBox dest(renderWindow->getWidth(), renderWindow->getHeight(), 1, Ogre::PF_A8R8G8B8, static_cast<void*>(imageOut.bits()));
+
+            try
+            {
+                renderWindow->copyContentsToMemory(dest, Ogre::RenderTarget::FB_AUTO);
+            }
+            catch(Ogre::Exception &ex) { return; }
+
+            ELIFORP(CloudRendering_TundraRenderer_GL_Copy_Data)
+        }
+
+        PROFILE(CloudRendering_TundraRenderer_UpdateConsumers)
+
+        if (!imageOut.isNull())
+        {
+            for (int i=0; i<consumers_.size(); ++i)
+            {
+                TundraRendererConsumerWeakPtr &iter = consumers_[i];
+                if (!iter.expired())
+                    iter.lock()->OnTundraFrame(&imageOut);
+                else
+                {
+                    consumers_.removeAt(i);
+                    i--;   
+                }            
+            }
         }
     }
 }

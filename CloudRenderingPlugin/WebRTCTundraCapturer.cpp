@@ -30,9 +30,11 @@
 #include "OgreTexture.h"
 #include "OgreHardwarePixelBuffer.h"
 
+#ifdef DIRECTX_ENABLED
 #include <d3d9.h>
 #include <OgreD3D9HardwarePixelBuffer.h>
 #include <OgreD3D9RenderWindow.h>
+#endif
 
 #include "talk/base/scoped_ptr.h"
 
@@ -46,7 +48,7 @@ namespace WebRTC
         // Default supported formats. Use ResetSupportedFormats to over write.
         std::vector<cricket::VideoFormat> formats;
         formats.push_back(cricket::VideoFormat(1280, 720,
-            cricket::VideoFormat::FpsToInterval(30), cricket::FOURCC_ARGB)); // FOURCC_ARGB
+            cricket::VideoFormat::FpsToInterval(30), cricket::FOURCC_ARGB));
         formats.push_back(cricket::VideoFormat(640, 480,
             cricket::VideoFormat::FpsToInterval(30), cricket::FOURCC_ARGB));
         formats.push_back(cricket::VideoFormat(320, 240,
@@ -106,7 +108,7 @@ namespace WebRTC
                 qDebug() << "  -- Best capture format " << supported.fourcc << "size =" << supported.width << "x" << supported.height << "interval =" << supported.interval;
             SetCaptureFormat(&supported);
         }
-        
+
         selfShared_ = shared_ptr<TundraCapturer>(this);
 
         CloudRenderingPlugin *plugin = framework_->Module<CloudRenderingPlugin>();
