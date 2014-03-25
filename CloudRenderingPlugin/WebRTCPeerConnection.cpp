@@ -22,6 +22,7 @@
 #include "talk/app/webrtc/videosourceinterface.h"
 #include "talk/media/devices/devicemanager.h"
 #include "talk/base/windowpicker.h"
+#include "talk/base/ssladapter.h"
 
 namespace WebRTC
 {       
@@ -76,6 +77,8 @@ namespace WebRTC
     
     void PeerConnection::Reset()
     {
+        talk_base::CleanupSSL();
+
         // Release media/track shader ptrs
         foreach(QPointer<VideoRenderer> renderer, activeRenderers_)
             if (renderer) renderer->Close();
@@ -540,7 +543,7 @@ namespace WebRTC
                 mediaConstraints_.Reset();
                 mediaConstraints_.SetAllowRtpDataChannels();
                 //mediaConstraints_.SetAllowDtlsSctpDataChannels(); // Does not work on current webrtc lib, should work in Chrome >=31.
-                
+                talk_base::InitializeSSL();
                 peerConnection_ = peerConnectionFactory_->CreatePeerConnection(servers, &mediaConstraints_, NULL, this);
             }
             if (peerConnection_.get())

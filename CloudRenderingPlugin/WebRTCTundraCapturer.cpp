@@ -81,7 +81,7 @@ namespace WebRTC
         time_ = currentTime;
         
         int numBytes = frame->byteCount();
-        talk_base::scoped_array<char> data(new char[numBytes]);
+        talk_base::scoped_ptr<char[]> data(new char[numBytes]);
         memcpy(static_cast<void*>(data.get()), static_cast<const void*>(frame->bits()), numBytes);
 
         out.fourcc = format->fourcc;
@@ -115,7 +115,11 @@ namespace WebRTC
         if (plugin && plugin->Renderer() && plugin->Renderer()->ApplicationRenderer())
         {
             plugin->Renderer()->ApplicationRenderer()->SetInterval(format.framerate());
-            plugin->Renderer()->ApplicationRenderer()->SetSize(format.width, format.height);
+            if (plugin->GetFramework()->HasCommandLineParameter("--cloudRenderingNoForceResize")) // @todo: document this
+                plugin->Renderer()->ApplicationRenderer()->SetSize(format.width, format.height - 21); // Hack for QMenuBar height
+            else
+                plugin->Renderer()->ApplicationRenderer()->SetSize(1280, 720 - 21);
+
             plugin->Renderer()->ApplicationRenderer()->Register(selfShared_);
         }
 

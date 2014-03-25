@@ -7,8 +7,6 @@
     @file   
     @brief   */
 
-#pragma once
-
 #include "CloudRenderingProtocol.h"
 #include "CoreJsonUtils.h"
 
@@ -66,7 +64,7 @@ namespace CloudRenderingProtocol
         bool ok = false;
         QVariantMap in = TundraJson::Parse(json, &ok).toMap();
         if (!ok)
-            MessageSharedPtr();
+            return MessageSharedPtr();
         
         // Read initial messageType information.
         QString channelTypeName = TundraJson::ValueForAnyKey(in, QStringList() << "channel" << "Channel", "").toString().trimmed();

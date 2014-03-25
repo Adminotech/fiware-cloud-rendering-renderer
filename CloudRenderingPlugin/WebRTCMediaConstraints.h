@@ -108,13 +108,13 @@ namespace WebRTC
         {
             AddMandatory(MediaConstraintsInterface::kEnableRtpDataChannels, true);
         }
-        
+#ifndef __APPLE__
         void SetAllowDtlsSctpDataChannels()
         {
             AddMandatory(MediaConstraintsInterface::kEnableSctpDataChannels, true);
             AddMandatory(MediaConstraintsInterface::kEnableDtlsSrtp, true);
         }
-
+#endif
     private:
         Constraints mandatory_;
         Constraints optional_;
