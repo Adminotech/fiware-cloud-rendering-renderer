@@ -81,7 +81,11 @@ namespace WebRTC
         time_ = currentTime;
         
         int numBytes = frame->byteCount();
+#ifdef Q_OS_WIN
+        talk_base::scoped_array<char> data(new char[numBytes]);
+#else
         talk_base::scoped_ptr<char[]> data(new char[numBytes]);
+#endif
         memcpy(static_cast<void*>(data.get()), static_cast<const void*>(frame->bits()), numBytes);
 
         out.fourcc = format->fourcc;

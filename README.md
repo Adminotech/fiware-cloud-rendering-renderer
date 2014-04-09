@@ -11,6 +11,8 @@ Instructions can be found from http://www.webrtc.org/reference/getting-started b
 
 **Note:** These instructions are for Visual Studio, not for cygwin.
 
+<span style="color:red">**WebRTC uses Google `depot_tools` as the build platform which recently made Visual Studio 2013 the only supported toolchain on Windows. We are investigating how to correct the situation. Using a older revision from the WebRTC repo does not fix the issue as it is still using the latest `depot_tools`. The below instructions are for VS2008 which is what we used to build the release binaries.**</span>
+
 ### Prerequisites 
 
 * Visual Studio 2008 or newer, with all service packs installed. If you have an Express edition see http://www.webrtc.org/reference/getting-started/prerequisite-sw for more instructions.
